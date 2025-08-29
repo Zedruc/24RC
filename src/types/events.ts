@@ -1,0 +1,11 @@
+export enum GENERAL_EVENTS {
+    ACTIVE_ROUTE_CHANGE = "ACTIVE_ROUTE_CHANGE",
+} 
+
+// 24data events
+export enum WEBSOCKET_EVENTS {
+    ACFT_DATA = "ACFT_DATA",
+    FLIGHT_PLAN = "FLIGHT_PLAN",
+    CONTROLLERS = "CONTROLLERS",
+    ATIS = "ATIS"
+}

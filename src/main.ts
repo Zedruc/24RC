@@ -9,12 +9,11 @@ import DistanceTool from "./components/DistanceTool";
 import AssetManager from "./AssetManager";
 import DisplayControlBar from "./components/DisplayControlBar";
 import AircraftLabel from "./components/AircraftLabel";
+import WsHandler from "./helpers/websocketHandler";
 
-// const pollAuthority = "http://localhost:3000";
-const POLL_AUTHORITY = "https://24data.ptfs.app";
-const POLL_INTERVAL = 3000;
-const POLL_ROUTES = ["/acft-data", "/acft-data/event"];
 const ROUTE_SWITCH_DELAY = 1000;
+
+let useEventData = false;
 
 const DOUBLE_CLICK_MS = 300;
 const DOUBLE_CLICK_DISTANCE = 200;
@@ -25,8 +24,6 @@ const DOUBLE_CLICK_DISTANCE = 200;
 // };
 // const gameSize = {x: 96355, y: 92030};
 const antialias = false;
-
-let tickInterval: number;
 
 (async () => {
     // Initialisation
@@ -105,7 +102,6 @@ let tickInterval: number;
 
     // Event switching & keybinds
     ///////////////////////////////
-    let activeRoute = 0;
     let lastSwitchTime = 0;
 
     window.addEventListener("keydown", ev => {
@@ -122,11 +118,13 @@ let tickInterval: number;
                 track.destroy();
             });
             acftTracks = [];
-            activeRoute = (activeRoute + 1) % (POLL_ROUTES.length);
+            useEventData = !useEventData;
 
-            clearInterval(tickInterval);
-            tick();
-            tickInterval = setInterval(tick, POLL_INTERVAL);
+            // Simply destroys all the tracks
+            updateAircraftTracks({});
+
+            // Let the 24data WebSocket handler know
+            WsHandler.setEventMode(useEventData);
         }
         // Toggle for Predicted track lines
         else if (ev.key.toUpperCase() === "P") {
@@ -181,11 +179,7 @@ let tickInterval: number;
 
     // Update aircraft tracks
     ///////////////////////////
-    const tick = () => {
-        fetch(
-            `${POLL_AUTHORITY}${POLL_ROUTES[activeRoute]}`,
-        ).then(async (res) => {
-            const acftCollection: AircraftCollection = await res.json();
+    function updateAircraftTracks(acftCollection: AircraftCollection) {
             const acftDatas = acftCollectionToAcftArray(acftCollection);
 
             // Iterate through the existing track
@@ -234,18 +228,13 @@ let tickInterval: number;
                 const label = new AircraftLabel(acftData, trackContainer, basemap);
                 acftLabels.push(label);
             });
-        }).catch(() => {
-            // Ping failed. All tracks not found.
-            acftTracks.forEach(track => {
-                track.notFound();
-                if (track.ttl <= 0)
-                    track.destroy();
-            });
+        }
 
-            acftTracks = acftTracks.filter(track => track.ttl > 0);
-        });
-    };
-
-    tick();
-    tickInterval = setInterval(tick, POLL_INTERVAL);
+    /**
+     * Using the WebSocket may introduce a up to 3 second delay
+     * for the first aircraft to be rendered, could be fixed by
+     * sending one fetch request to the endpoint on startup and
+     * then rendering that to avoid the delay
+     */
+    WsHandler.addEventListener("ACFT_DATA", updateAircraftTracks);
 })();
